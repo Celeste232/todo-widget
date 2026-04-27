@@ -12,6 +12,7 @@ const els = {
   empty: document.getElementById('emptyState'),
   clearBtn: document.getElementById('clearAllBtn'),
   tabs: document.querySelectorAll('.tab'),
+  toggleBtn: document.getElementById('toggleAddBtn'),
 };
 
 function load() {
@@ -158,11 +159,37 @@ function render() {
   }
 }
 
+function setAddOpen(open) {
+  els.form.classList.toggle('collapsed', !open);
+  els.toggleBtn.classList.toggle('open', open);
+  els.toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) {
+    setTimeout(() => els.input.focus(), 80);
+  } else {
+    els.input.value = '';
+  }
+}
+
+els.toggleBtn.addEventListener('click', () => {
+  const isOpen = !els.form.classList.contains('collapsed');
+  setAddOpen(!isOpen);
+});
+
 els.form.addEventListener('submit', (e) => {
   e.preventDefault();
   addTask(els.input.value);
   els.input.value = '';
   els.input.focus();
+});
+
+els.input.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') setAddOpen(false);
+});
+
+document.addEventListener('click', (e) => {
+  if (els.form.classList.contains('collapsed')) return;
+  if (els.form.contains(e.target) || els.toggleBtn.contains(e.target)) return;
+  if (!els.input.value.trim()) setAddOpen(false);
 });
 
 els.tabs.forEach(tab => {

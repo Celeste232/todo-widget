@@ -55,13 +55,60 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-bottom: 16px;
+  min-height: 28px;
+}
+
 .title {
-  text-align: center;
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 18px;
   letter-spacing: -0.2px;
+}
+
+.add-toggle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #A8D8EA 0%, #7DC1E0 100%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  color: #FFFFFF;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 2px 6px rgba(125, 193, 224, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+}
+
+.add-toggle:hover {
+  transform: translateY(-50%) scale(1.08);
+  box-shadow:
+    0 4px 10px rgba(125, 193, 224, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.add-toggle:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.add-toggle.open .icon-plus {
+  transform: rotate(45deg);
+}
+
+.icon-plus {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .add-row {
@@ -74,7 +121,23 @@ body {
   margin-bottom: 16px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease,
+    margin 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    padding 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 60px;
+  overflow: hidden;
+}
+
+.add-row.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: transparent;
+  pointer-events: none;
 }
 
 .add-row:focus-within {
