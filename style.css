@@ -70,7 +70,7 @@ body {
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   border-radius: 12px;
-  padding: 10px 14px;
+  padding: 7px 14px;
   margin-bottom: 16px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -238,6 +238,33 @@ body {
   color: var(--text-muted);
 }
 
+.star-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.star-btn:hover {
+  color: var(--accent);
+  transform: scale(1.15);
+}
+
+.star-btn.active {
+  color: var(--accent);
+}
+
+.star-btn.active svg {
+  fill: var(--accent);
+}
+
 .task-menu {
   background: none;
   border: none;
@@ -245,10 +272,11 @@ body {
   cursor: pointer;
   padding: 4px 6px;
   border-radius: 4px;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
   transition: all 0.15s ease;
   opacity: 0;
+  flex-shrink: 0;
 }
 
 .task-item:hover .task-menu {

@@ -36,7 +36,7 @@ function uid() {
 function addTask(text) {
   const trimmed = text.trim();
   if (!trimmed) return;
-  state.tasks.unshift({ id: uid(), text: trimmed, done: false, createdAt: Date.now() });
+  state.tasks.unshift({ id: uid(), text: trimmed, done: false, starred: false, createdAt: Date.now() });
   save();
   render();
 }
@@ -45,6 +45,14 @@ function toggleTask(id) {
   const t = state.tasks.find(x => x.id === id);
   if (!t) return;
   t.done = !t.done;
+  save();
+  render();
+}
+
+function toggleStar(id) {
+  const t = state.tasks.find(x => x.id === id);
+  if (!t) return;
+  t.starred = !t.starred;
   save();
   render();
 }
@@ -83,9 +91,16 @@ function setFilter(filter) {
 }
 
 function getVisible() {
-  if (state.filter === 'pending') return state.tasks.filter(t => !t.done);
-  if (state.filter === 'completed') return state.tasks.filter(t => t.done);
-  return state.tasks;
+  let list;
+  if (state.filter === 'pending') list = state.tasks.filter(t => !t.done);
+  else if (state.filter === 'completed') list = state.tasks.filter(t => t.done);
+  else list = state.tasks.slice();
+
+  list.sort((a, b) => {
+    if (a.starred !== b.starred) return b.starred - a.starred;
+    return b.createdAt - a.createdAt;
+  });
+  return list;
 }
 
 function render() {
@@ -117,6 +132,15 @@ function render() {
     text.textContent = t.text;
     text.addEventListener('click', () => toggleTask(t.id));
 
+    const star = document.createElement('button');
+    star.className = 'star-btn' + (t.starred ? ' active' : '');
+    star.setAttribute('aria-label', t.starred ? '중요 해제' : '중요 표시');
+    star.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>';
+    star.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleStar(t.id);
+    });
+
     const menu = document.createElement('button');
     menu.className = 'task-menu';
     menu.innerHTML = '&#x2715;';
@@ -128,6 +152,7 @@ function render() {
 
     li.appendChild(checkbox);
     li.appendChild(text);
+    li.appendChild(star);
     li.appendChild(menu);
     els.list.appendChild(li);
   }
