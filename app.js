@@ -1,8 +1,12 @@
-const STORAGE_KEY = 'wony_todo_widget_v1';
+const API_BASE = 'https://wony-todo-api.vivwonvc.workers.dev';
+const CACHE_KEY = 'wony_todo_widget_cache_v2';
+const SYNC_INTERVAL_MS = 15000;
 
 const state = {
   tasks: [],
   filter: 'all',
+  loading: false,
+  pendingDateFor: null,
 };
 
 const els = {
@@ -15,72 +19,144 @@ const els = {
   toggleBtn: document.getElementById('toggleAddBtn'),
 };
 
-function load() {
+function loadCache() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(CACHE_KEY);
     if (raw) state.tasks = JSON.parse(raw);
-  } catch (e) {
-    state.tasks = [];
-  }
-}
-
-function save() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.tasks));
   } catch (e) {}
 }
 
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function saveCache() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(state.tasks));
+  } catch (e) {}
 }
 
-function addTask(text) {
+async function api(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function fetchTasks() {
+  try {
+    const { tasks } = await api('/tasks');
+    state.tasks = tasks;
+    saveCache();
+    render();
+  } catch (e) {
+    console.warn('fetchTasks failed:', e.message);
+  }
+}
+
+async function addTask(text, date = null) {
   const trimmed = text.trim();
   if (!trimmed) return;
-  state.tasks.unshift({ id: uid(), text: trimmed, done: false, starred: false, createdAt: Date.now() });
-  save();
+  const optimistic = {
+    id: 'temp_' + Date.now(),
+    text: trimmed, done: false, starred: false, date,
+    createdAt: Date.now(),
+    pending: true,
+  };
+  state.tasks.unshift(optimistic);
   render();
+  try {
+    const { task } = await api('/tasks', {
+      method: 'POST',
+      body: JSON.stringify({ text: trimmed, date }),
+    });
+    const idx = state.tasks.findIndex(x => x.id === optimistic.id);
+    if (idx !== -1) state.tasks[idx] = task;
+    saveCache();
+    render();
+  } catch (e) {
+    const idx = state.tasks.findIndex(x => x.id === optimistic.id);
+    if (idx !== -1) state.tasks.splice(idx, 1);
+    render();
+    alert('할 일 추가 실패: ' + e.message);
+  }
+}
+
+async function patchTask(id, patch) {
+  const t = state.tasks.find(x => x.id === id);
+  if (!t) return;
+  const before = { ...t };
+  Object.assign(t, patch);
+  render();
+  try {
+    const { task } = await api(`/tasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+    const idx = state.tasks.findIndex(x => x.id === id);
+    if (idx !== -1) state.tasks[idx] = task;
+    saveCache();
+    render();
+  } catch (e) {
+    const idx = state.tasks.findIndex(x => x.id === id);
+    if (idx !== -1) state.tasks[idx] = before;
+    render();
+    alert('변경 실패: ' + e.message);
+  }
 }
 
 function toggleTask(id) {
   const t = state.tasks.find(x => x.id === id);
   if (!t) return;
-  t.done = !t.done;
-  save();
-  render();
+  patchTask(id, { done: !t.done });
 }
 
 function toggleStar(id) {
   const t = state.tasks.find(x => x.id === id);
   if (!t) return;
-  t.starred = !t.starred;
-  save();
-  render();
+  patchTask(id, { starred: !t.starred });
 }
 
-function deleteTask(id) {
-  state.tasks = state.tasks.filter(x => x.id !== id);
-  save();
-  render();
+function setTaskDate(id, date) {
+  patchTask(id, { date });
 }
 
-function clearAll() {
-  if (state.tasks.length === 0) return;
-  const msg = state.filter === 'completed'
-    ? '완료된 항목을 모두 삭제할까?'
-    : state.filter === 'pending'
-      ? '진행 중 항목을 모두 삭제할까?'
-      : '모든 할 일을 삭제할까?';
-  if (!confirm(msg)) return;
-  if (state.filter === 'all') {
-    state.tasks = [];
-  } else if (state.filter === 'completed') {
-    state.tasks = state.tasks.filter(t => !t.done);
-  } else {
-    state.tasks = state.tasks.filter(t => t.done);
+async function deleteTask(id) {
+  const idx = state.tasks.findIndex(x => x.id === id);
+  if (idx === -1) return;
+  const removed = state.tasks.splice(idx, 1)[0];
+  render();
+  try {
+    await api(`/tasks/${id}`, { method: 'DELETE' });
+    saveCache();
+  } catch (e) {
+    state.tasks.splice(idx, 0, removed);
+    render();
+    alert('삭제 실패: ' + e.message);
   }
-  save();
-  render();
+}
+
+async function clearAll() {
+  let targets;
+  let msg;
+  if (state.filter === 'completed') {
+    targets = state.tasks.filter(t => t.done);
+    msg = `완료된 ${targets.length}개를 삭제할까?`;
+  } else if (state.filter === 'pending') {
+    targets = state.tasks.filter(t => !t.done);
+    msg = `진행 중 ${targets.length}개를 삭제할까?`;
+  } else {
+    targets = state.tasks.slice();
+    msg = `모든 할 일 ${targets.length}개를 삭제할까?`;
+  }
+  if (targets.length === 0) return;
+  if (!confirm(msg)) return;
+
+  await Promise.allSettled(targets.map(t =>
+    api(`/tasks/${t.id}`, { method: 'DELETE' })
+  ));
+  await fetchTasks();
 }
 
 function setFilter(filter) {
@@ -104,6 +180,15 @@ function getVisible() {
   return list;
 }
 
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${m}/${day}`;
+}
+
 function render() {
   const visible = getVisible();
   els.list.innerHTML = '';
@@ -120,7 +205,7 @@ function render() {
 
   for (const t of visible) {
     const li = document.createElement('li');
-    li.className = 'task-item' + (t.done ? ' done' : '');
+    li.className = 'task-item' + (t.done ? ' done' : '') + (t.pending ? ' pending' : '');
     li.dataset.id = t.id;
 
     const checkbox = document.createElement('button');
@@ -128,10 +213,49 @@ function render() {
     checkbox.setAttribute('aria-label', t.done ? '완료 취소' : '완료 표시');
     checkbox.addEventListener('click', () => toggleTask(t.id));
 
+    const textWrap = document.createElement('div');
+    textWrap.className = 'task-text-wrap';
+
     const text = document.createElement('span');
     text.className = 'task-text';
     text.textContent = t.text;
     text.addEventListener('click', () => toggleTask(t.id));
+    textWrap.appendChild(text);
+
+    if (t.date) {
+      const badge = document.createElement('span');
+      badge.className = 'date-badge';
+      badge.textContent = formatDate(t.date);
+      textWrap.appendChild(badge);
+    }
+
+    const dateBtn = document.createElement('button');
+    dateBtn.className = 'date-btn' + (t.date ? ' has-date' : '');
+    dateBtn.setAttribute('aria-label', t.date ? '마감일 변경' : '마감일 추가');
+    dateBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>';
+
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.className = 'date-input';
+    dateInput.value = t.date || '';
+    dateInput.addEventListener('change', (e) => {
+      setTaskDate(t.id, e.target.value || null);
+    });
+    dateBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      try {
+        if (typeof dateInput.showPicker === 'function') dateInput.showPicker();
+        else dateInput.click();
+      } catch {
+        dateInput.click();
+      }
+    });
+    if (t.date) {
+      dateBtn.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (confirm('마감일을 지울까?')) setTaskDate(t.id, null);
+      });
+    }
 
     const star = document.createElement('button');
     star.className = 'star-btn' + (t.starred ? ' active' : '');
@@ -152,7 +276,9 @@ function render() {
     });
 
     li.appendChild(checkbox);
-    li.appendChild(text);
+    li.appendChild(textWrap);
+    li.appendChild(dateInput);
+    li.appendChild(dateBtn);
     li.appendChild(star);
     li.appendChild(menu);
     els.list.appendChild(li);
@@ -177,8 +303,9 @@ els.toggleBtn.addEventListener('click', () => {
 
 els.form.addEventListener('submit', (e) => {
   e.preventDefault();
-  addTask(els.input.value);
+  const value = els.input.value;
   els.input.value = '';
+  addTask(value);
   els.input.focus();
 });
 
@@ -198,20 +325,11 @@ els.tabs.forEach(tab => {
 
 els.clearBtn.addEventListener('click', clearAll);
 
-window.addEventListener('storage', (e) => {
-  if (e.key === STORAGE_KEY) {
-    load();
-    render();
-  }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') fetchTasks();
 });
 
-load();
-if (state.tasks.length === 0) {
-  state.tasks = [
-    { id: uid(), text: 'Update Notion', done: true, createdAt: Date.now() - 3000 },
-    { id: uid(), text: 'Update to-do list', done: false, createdAt: Date.now() - 2000 },
-    { id: uid(), text: 'Familiarize myself with dashboard', done: false, createdAt: Date.now() - 1000 },
-  ];
-  save();
-}
+loadCache();
 render();
+fetchTasks();
+setInterval(fetchTasks, SYNC_INTERVAL_MS);
