@@ -79,7 +79,7 @@ async function addTask(text, date = null) {
     const idx = state.tasks.findIndex(x => x.id === optimistic.id);
     if (idx !== -1) state.tasks.splice(idx, 1);
     render();
-    alert('할 일 추가 실패: ' + e.message);
+    console.warn('할 일 추가 실패:', e.message);
   }
 }
 
@@ -102,7 +102,7 @@ async function patchTask(id, patch) {
     const idx = state.tasks.findIndex(x => x.id === id);
     if (idx !== -1) state.tasks[idx] = before;
     render();
-    alert('변경 실패: ' + e.message);
+    console.warn('변경 실패:', e.message);
   }
 }
 
@@ -133,26 +133,37 @@ async function deleteTask(id) {
   } catch (e) {
     state.tasks.splice(idx, 0, removed);
     render();
-    alert('삭제 실패: ' + e.message);
+    console.warn('삭제 실패:', e.message);
   }
+}
+
+let clearArmedTimer = null;
+function disarmClear() {
+  els.clearBtn.classList.remove('armed');
+  els.clearBtn.textContent = 'Clear All';
+  if (clearArmedTimer) { clearTimeout(clearArmedTimer); clearArmedTimer = null; }
 }
 
 async function clearAll() {
   let targets;
-  let msg;
-  if (state.filter === 'completed') {
-    targets = state.tasks.filter(t => t.done);
-    msg = `완료된 ${targets.length}개를 삭제할까?`;
-  } else if (state.filter === 'pending') {
-    targets = state.tasks.filter(t => !t.done);
-    msg = `진행 중 ${targets.length}개를 삭제할까?`;
-  } else {
-    targets = state.tasks.slice();
-    msg = `모든 할 일 ${targets.length}개를 삭제할까?`;
-  }
+  if (state.filter === 'completed') targets = state.tasks.filter(t => t.done);
+  else if (state.filter === 'pending') targets = state.tasks.filter(t => !t.done);
+  else targets = state.tasks.slice();
   if (targets.length === 0) return;
-  if (!confirm(msg)) return;
 
+  if (!els.clearBtn.classList.contains('armed')) {
+    els.clearBtn.classList.add('armed');
+    els.clearBtn.textContent = `정말? (${targets.length}개)`;
+    clearArmedTimer = setTimeout(disarmClear, 3000);
+    return;
+  }
+
+  disarmClear();
+  for (const t of targets) {
+    const idx = state.tasks.findIndex(x => x.id === t.id);
+    if (idx !== -1) state.tasks.splice(idx, 1);
+  }
+  render();
   await Promise.allSettled(targets.map(t =>
     api(`/tasks/${t.id}`, { method: 'DELETE' })
   ));
@@ -253,7 +264,7 @@ function render() {
     if (t.date) {
       dateBtn.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        if (confirm('마감일을 지울까?')) setTaskDate(t.id, null);
+        setTaskDate(t.id, null);
       });
     }
 

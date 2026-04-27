@@ -225,6 +225,16 @@ body {
   background: var(--accent-hover);
 }
 
+.clear-btn.armed {
+  background: #C03050;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
 .task-list {
   list-style: none;
   display: flex;
