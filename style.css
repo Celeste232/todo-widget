@@ -5,17 +5,17 @@
 }
 
 :root {
-  --bg: linear-gradient(135deg, #FFE4EC 0%, #FFD1DC 50%, #FFC2D4 100%);
-  --card-bg: rgba(255, 255, 255, 0.55);
-  --card-border: rgba(255, 255, 255, 0.7);
+  --bg: transparent;
+  --card-bg: linear-gradient(135deg, rgba(255, 228, 236, 0.78) 0%, rgba(255, 209, 220, 0.72) 100%);
+  --card-border: rgba(255, 255, 255, 0.85);
   --text-primary: #4A1F2E;
   --text-secondary: #8B5566;
   --text-muted: #C49AA8;
   --accent: #E85A7A;
   --accent-hover: #D14668;
   --accent-soft: rgba(232, 90, 122, 0.15);
-  --input-bg: rgba(255, 255, 255, 0.6);
-  --input-border: rgba(255, 255, 255, 0.8);
+  --input-bg: rgba(255, 255, 255, 0.65);
+  --input-border: rgba(255, 255, 255, 0.9);
   --divider: rgba(232, 90, 122, 0.15);
   --check-bg: #E85A7A;
   --check-empty: rgba(255, 255, 255, 0.7);
